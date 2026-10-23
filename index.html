@@ -1,0 +1,350 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost-Interprice Dashboard</title>
+
+<style>
+:root {
+  --bg: #090b14;
+  --card: #131728;
+  --purple: #7357ff;
+  --text: #f4f4ff;
+  --muted: #9ca6c5;
+  --red: #ff4d7d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  padding: 30px 20px;
+  text-align: center;
+  background: linear-gradient(135deg, #17142d, #090b14);
+  border-bottom: 1px solid #292c45;
+}
+
+.logo {
+  font-size: clamp(27px, 5vw, 48px);
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 0 20px var(--purple);
+}
+
+.ghost {
+  font-size: 65px;
+  filter: drop-shadow(0 0 15px var(--purple));
+}
+
+header p { color: var(--muted); }
+
+main {
+  max-width: 1100px;
+  margin: 30px auto;
+  padding: 0 18px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.stat, .panel {
+  background: var(--card);
+  border: 1px solid #292e49;
+  border-radius: 15px;
+  padding: 20px;
+}
+
+.stat span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stat strong {
+  display: block;
+  font-size: 28px;
+  margin-top: 7px;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+h2 { margin-top: 0; }
+
+form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+input[type="text"] {
+  min-width: 0;
+  flex: 1;
+  background: #090d19;
+  border: 1px solid #303653;
+  border-radius: 9px;
+  padding: 12px;
+  color: white;
+  outline: none;
+}
+
+input[type="text"]:focus {
+  border-color: var(--purple);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 9px;
+  padding: 10px 14px;
+  color: white;
+  background: var(--purple);
+  font-weight: bold;
+}
+
+button:hover { filter: brightness(1.15); }
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  margin-top: 8px;
+  background: #0c1020;
+  border: 1px solid #252b43;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+.item input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--purple);
+  flex-shrink: 0;
+}
+
+.item .name { flex: 1; }
+
+.item.done .name {
+  text-decoration: line-through;
+  color: #7e88a8;
+}
+
+.delete {
+  background: transparent;
+  color: var(--red);
+  font-size: 18px;
+  padding: 5px 8px;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 18px 5px;
+}
+
+footer {
+  text-align: center;
+  padding: 25px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .panels { grid-template-columns: 1fr; }
+  .stats { gap: 7px; }
+  .stat { padding: 12px; }
+  .stat strong { font-size: 23px; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">Ghost-Interprice</div>
+  <div class="ghost">👻</div>
+  <p>IDEEN · AUFTRÄGE · ERFOLG</p>
+</header>
+
+<main>
+  <section class="stats">
+    <div class="stat">
+      <span>Offene Notizen</span>
+      <strong id="openNotes">0</strong>
+    </div>
+    <div class="stat">
+      <span>Offene Aufträge</span>
+      <strong id="openOrders">0</strong>
+    </div>
+    <div class="stat">
+      <span>Erledigt</span>
+      <strong id="completed">0</strong>
+    </div>
+  </section>
+
+  <section class="panels">
+    <article class="panel">
+      <h2>📝 Notizen</h2>
+      <form id="noteForm">
+        <input id="noteInput" type="text"
+          placeholder="Neue Notiz schreiben..." maxlength="240" required>
+        <button type="submit">+</button>
+      </form>
+      <div id="noteList"></div>
+    </article>
+
+    <article class="panel">
+      <h2>📋 Aufträge</h2>
+      <form id="orderForm">
+        <input id="orderInput" type="text"
+          placeholder="Neuen Auftrag eingeben..." maxlength="240" required>
+        <button type="submit">+</button>
+      </form>
+      <div id="orderList"></div>
+    </article>
+  </section>
+</main>
+
+<footer>Ghost-Interprice · Dein Workspace</footer>
+
+<script>
+const KEY = "ghost-interprice-data";
+
+function load() {
+  try {
+    const data = JSON.parse(localStorage.getItem(KEY));
+    if (data && Array.isArray(data.notes) &&
+        Array.isArray(data.orders)) return data;
+  } catch (e) {}
+  return { notes: [], orders: [] };
+}
+
+let data = load();
+
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+  } catch (e) {
+    alert("Speichern im Browser nicht möglich.");
+  }
+}
+
+function addItem(type, text) {
+  text = text.trim();
+  if (!text) return;
+
+  data[type].unshift({
+    id: Date.now() + Math.random(),
+    text,
+    done: false
+  });
+
+  save();
+  render();
+}
+
+function toggleItem(type, id, checked) {
+  const item = data[type].find(x => x.id === id);
+  if (item) item.done = checked;
+  save();
+  render();
+}
+
+function deleteItem(type, id) {
+  data[type] = data[type].filter(x => x.id !== id);
+  save();
+  render();
+}
+
+function renderList(type, elementId) {
+  const list = document.getElementById(elementId);
+  list.replaceChildren();
+
+  if (data[type].length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = type === "notes"
+      ? "Noch keine Notizen vorhanden."
+      : "Noch keine Aufträge vorhanden.";
+    list.appendChild(empty);
+    return;
+  }
+
+  data[type].forEach(item => {
+    const row = document.createElement("div");
+    row.className = "item" + (item.done ? " done" : "");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = item.done;
+    checkbox.setAttribute("aria-label", "Erledigt");
+    checkbox.addEventListener("change", e =>
+      toggleItem(type, item.id, e.target.checked)
+    );
+
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = item.text;
+
+    const del = document.createElement("button");
+    del.className = "delete";
+    del.textContent = "🗑";
+    del.title = "Löschen";
+    del.setAttribute("aria-label", "Eintrag löschen");
+    del.addEventListener("click", () =>
+      deleteItem(type, item.id)
+    );
+
+    row.append(checkbox, name, del);
+    list.appendChild(row);
+  });
+}
+
+function render() {
+  renderList("notes", "noteList");
+  renderList("orders", "orderList");
+
+  document.getElementById("openNotes").textContent =
+    data.notes.filter(x => !x.done).length;
+
+  document.getElementById("openOrders").textContent =
+    data.orders.filter(x => !x.done).length;
+
+  document.getElementById("completed").textContent =
+    [...data.notes, ...data.orders].filter(x => x.done).length;
+}
+
+document.getElementById("noteForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const input = document.getElementById("noteInput");
+  addItem("notes", input.value);
+  input.value = "";
+});
+
+document.getElementById("orderForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const input = document.getElementById("orderInput");
+  addItem("orders", input.value);
+  input.value = "";
+});
+
+render();
+</script>
+
+</body>
+</html>
